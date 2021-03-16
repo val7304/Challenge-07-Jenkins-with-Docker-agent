@@ -1,0 +1,374 @@
+/**
+* 
+* HOW TO SETUP DOCKER CONTAINER AS BUILD SLAVE FOR JENLINS 
+* https://www.youtube.com/watch?v=yb6DodK6mbg
+* 
+**/
+
+/* ------------ commands executed  ------------ */
+
+image used: 
+https://hub.docker.com/r/centos/systemd
+Digest - OS/ARCH
+linux/amd64
+71.68 MB
+
+-------------------------------------------------------------------------------------------------------
+
+https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-centos-7
+
+Dockerfile Docker Host
+
+#build Dockerfile 
+-----------------
+PS D:\challenges\centOs> docker build -t dockertest .  
+
+[+] Building 3.0s (7/7) FINISHED
+ => => transferring dockerfile: 217B                                                                                                         0.0s 
+ => [internal] load .dockerignore                                                                                                            0.1s 
+ => => transferring context: 2B                                                                                                              0.0s 
+ => [1/3] FROM docker.io/centos/systemd                                                                                                      0.0s 
+ => CACHED [2/3] RUN yum -y install httpd; yum clean all; systemctl enable httpd.service                                                     0.0s 
+ => CACHED [3/3] RUN curl -fsSL https://get.docker.com/ | sh                                                                                 0.0s 
+ => => exporting layers                                                                                                                      2.9s 
+ => => writing image sha256:6d5fcbb5a0ecbf897f451d493a0aa3c57a78cf847712b642fa8dcf0957d26b39                                                 0.0s 
+
+#view docker images 
+--------------------
+PS D:\challenges\centOs> docker images 
+dockertest                           latest                                                  6d5fcbb5a0ec   42 seconds ago   953MB
+
+ 
+ 
+# run image
+-----------
+PS D:\challenges\centOs> docker run --privileged --name dockertest -v /sys/fs/cgroup:/sys/fs/cgroup:ro -p 80:80 -d  dockertest     
+786dac9969ee63e4e92477d6ad503b93db467233a66d881f2a0280ce77275d5b
+
+#view the container
+-------------------
+PS D:\challenges\centOs> docker ps
+
+CONTAINER ID   IMAGE        COMMAND            CREATED         STATUS         PORTS                NAMES
+786dac9969ee   dockertest   "/usr/sbin/init"   8 seconds ago   Up 6 seconds   0.0.0.0:80->80/tcp   dockertest
+
+# Jump to the container
+-----------------------
+
+PS D:\challenges\centOs> docker exec -it 786 /bin/bash                                                                                    
+
+#start docker and asked his status
+----------------------------------                                                 
+[root@786dac9969ee /]# systemctl start docker
+[root@786dac9969ee /]# systemctl status docker
+● docker.service - Docker Application Container Engine
+   Loaded: loaded (/usr/lib/systemd/system/docker.service; disabled; vendor preset: disabled)
+   Active: active (running) since Mon 2021-03-08 14:23:52 UTC; 9s ago
+     Docs: https://docs.docker.com
+ Main PID: 60 (dockerd)
+    Tasks: 15
+   Memory: 51.0M
+   CGroup: /docker/786dac9969ee63e4e92477d6ad503b93db467233a66d881f2a0280ce77275d5b/system.slice/docker.service
+           └─60 /usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock
+
+Mar 08 14:23:51 786dac9969ee dockerd[60]: time="2021-03-08T14:23:51.789339800Z" level=warning msg="Your kernel does not support cgroup ..._device"Mar 08 14:23:51 786dac9969ee dockerd[60]: time="2021-03-08T14:23:51.789348300Z" level=warning msg="Your kernel does not support cgroup ..._device"Mar 08 14:23:51 786dac9969ee dockerd[60]: time="2021-03-08T14:23:51.789570500Z" level=info msg="Loading containers: start."
+Mar 08 14:23:51 786dac9969ee dockerd[60]: time="2021-03-08T14:23:51.790695600Z" level=warning msg="Running modprobe bridge br_netfilter...tatus 1"Mar 08 14:23:51 786dac9969ee dockerd[60]: time="2021-03-08T14:23:51.903634800Z" level=info msg="Default bridge (docker0) is assigned wi...address"Mar 08 14:23:51 786dac9969ee dockerd[60]: time="2021-03-08T14:23:51.966855000Z" level=info msg="Loading containers: done."
+Mar 08 14:23:51 786dac9969ee dockerd[60]: time="2021-03-08T14:23:51.977275000Z" level=info msg="Docker daemon" commit=363e9a8 graphdriv...=20.10.5Mar 08 14:23:51 786dac9969ee dockerd[60]: time="2021-03-08T14:23:51.977409400Z" level=info msg="Daemon has completed initialization"
+Mar 08 14:23:52 786dac9969ee systemd[1]: Started Docker Application Container Engine.
+Mar 08 14:23:52 786dac9969ee dockerd[60]: time="2021-03-08T14:23:52.030142900Z" level=info msg="API listen on /var/run/docker.sock"
+Hint: Some lines were ellipsized, use -l to show in full.
+
+
+#enable docker
+--------------
+
+[root@786dac9969ee /]# systemctl enable docker
+Created symlink from /etc/systemd/system/multi-user.target.wants/docker.service to /usr/lib/systemd/system/docker.service.
+
+
+
+#change docker.service ExecStart values:
+----------------------------------------
+[root@786dac9969ee /]# vi /lib/systemd/system/docker.service
+
+----------------------------------------
+i to enter in "Insert Mode"
+replace: 
+ExecStart=/usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock
+by: 
+ExecStart=/usr/bin/dockerd -H tcp://0.0.0.0:4243 -H unix:///var/run/docker.sock  
+
+ESC + :wq (SAVE AND QUIT)
+----------------------------------------
+
+#reload && restart system: 
+------------------------------------------------------------------
+i to enter in "Insert Mode"
+replace: 
+ExecStart=/usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock
+by: 
+ExecStart=/usr/bin/dockerd -H tcp://0.0.0.0:4243 -H unix:///var/run/docker.sock  
+
+ESC + :wq (SAVE AND QUIT)
+----------------------------------------
+
+#reload && restart system: 
+--------------------------
+[root@786dac9969ee /]# systemctl daemon-reload
+
+#[root@786dac9969ee /]# service docker restart //command don't work => return bash: service: command not found
+[root@786dac9969ee /]# systemctl restart docker #use this instead of service docker restart
+
+
+#verify data in docker.service:
+-------------------------------
+[root@786dac9969ee /]# cat /lib/systemd/system/docker.service
+[Unit]
+//... 
+ExecStart=/usr/bin/dockerd -H tcp://0.0.0.0:4243 -H unix:///var/run/docker.sock  
+//..
+
+#verify if docker is well:
+--------------------------
+
+[root@786dac9969ee /]# docker version
+Client: Docker Engine - Community
+ Version:           20.10.5
+ API version:       1.41
+ Go version:        go1.13.15
+ Git commit:        55c4c88
+ Built:             Tue Mar  2 20:33:55 2021
+ OS/Arch:           linux/amd64
+ Context:           default
+ Experimental:      true
+
+Server: Docker Engine - Community
+ Engine:
+  Version:          20.10.5
+  API version:      1.41 (minimum version 1.12)
+  Go version:       go1.13.15
+  Git commit:       363e9a8
+  Built:            Tue Mar  2 20:32:17 2021
+  OS/Arch:          linux/amd64
+  Experimental:     false
+ containerd:
+  Version:          1.4.3
+  GitCommit:        269548fa27e0089a8b8278fc4fc781d7f65a939b
+ runc:
+  Version:          1.0.0-rc92
+  GitCommit:        ff819c7e9184c13b7c2607fe6c30ae19403a7aff
+ docker-init:
+  Version:          0.19.0
+  GitCommit:        de40ad0
+
+
+
+#view if the port is open: 
+--------------------------
+[root@786dac9969ee /]# ps faux
+USER       PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+root       355  0.0  0.0  11832  3008 pts/0    Ss   14:46   0:00 /bin/bash
+root       414  0.0  0.0  51748  3644 pts/0    R+   15:02   0:00  \_ ps faux
+root         1  0.0  0.0  43168  4856 ?        Ss   14:23   0:00 /usr/sbin/init
+root        19  0.0  0.0  39092  5408 ?        Ss   14:23   0:00 /usr/lib/systemd/systemd-journald
+root        20  0.0  0.0 224080  7560 ?        Ss   14:23   0:00 /usr/sbin/httpd -DFOREGROUND
+apache      22  0.0  0.0 224216  6024 ?        S    14:23   0:00  \_ /usr/sbin/httpd -DFOREGROUND
+apache      23  0.0  0.0 224216  6024 ?        S    14:23   0:00  \_ /usr/sbin/httpd -DFOREGROUND
+apache      24  0.0  0.0 224216  6024 ?        S    14:23   0:00  \_ /usr/sbin/httpd -DFOREGROUND
+apache      25  0.0  0.0 224216  6024 ?        S    14:23   0:00  \_ /usr/sbin/httpd -DFOREGROUND
+apache      26  0.0  0.0 224216  6024 ?        S    14:23   0:00  \_ /usr/sbin/httpd -DFOREGROUND
+apache     185  0.0  0.0 224216  6024 ?        S    14:26   0:00  \_ /usr/sbin/httpd -DFOREGROUND
+apache     186  0.0  0.0 224216  6024 ?        S    14:26   0:00  \_ /usr/sbin/httpd -DFOREGROUND
+apache     187  0.0  0.0 224216  6024 ?        S    14:26   0:00  \_ /usr/sbin/httpd -DFOREGROUND
+apache     354  0.0  0.0 224080  6024 ?        S    14:38   0:00  \_ /usr/sbin/httpd -DFOREGROUND
+root        46  0.0  0.4 766500 54656 ?        Ssl  14:23   0:01 /usr/bin/containerd
+dbus        80  0.0  0.0  58108  4320 ?        Ss   14:23   0:00 /usr/bin/dbus-daemon --system --address=systroot       218  0.0  0.7 1053336 97616 ?       Ssl  14:36   0:00 /usr/bin/dockerd -H tcp://0.0.0.0:4243 -H un
+
+
+# vérification de la connection sur le port 22 de l'hote docker:
+----------------------------------------------------------------
+#first in localhost: 
+
+[root@786dac9969ee /]# curl http://localhost:4243/version
+{"Platform":{"Name":"Docker Engine - Community"},"Components":[{"Name":"Engine","Version":"20.10.5","Details":{"ApiVersion":"1.41","Arch":"amd64","BuildTime":"2021-03-02T20:32:17.000000000+00:00","Experimental":"false","GitCommit":"363e9a8","GoVersion":"go1.13.15","KernelVersion":"4.19.128-microsoft-standard","MinAPIVersion":"1.12","Os":"linux"}},{"Name":"containerd","Version":"1.4.3","Details":{"GitCommit":"269548fa27e0089a8b8278fc4fc781d7f65a939b"}},{"Name":"runc","Version":"1.0.0-rc92","Details":{"GitCommit":"ff819c7e9184c13b7c2607fe6c30ae19403a7aff"}},{"Name":"docker-init","Version":"0.19.0","Details":{"GitCommit":"de40ad0"}}],"Version":"20.10.5","ApiVersion":"1.41","MinAPIVersion":"1.12","GitCommit":"363e9a8","GoVersion":"go1.13.15","Os":"linux","Arch":"amd64","KernelVersion":"4.19.128-microsoft-standard","BuildTime":"2021-03-02T20:32:17.000000000+00:00"}
+
+#find public ip from dockerhost 
+-------------------------------
+valer@DESKTOP-L2RC63V MINGW64 /d/challenges/challenge-test/centOs
+$ docker inspect dockertest
+  "Networks": {
+                "bridge": {
+                    "IPAMConfig": null,
+                    "Links": null,
+                    "Aliases": null,
+                    "NetworkID": "0d5f5d52498000933c2fadf42a322779138b707b927ca734390e985f169085ce",
+                    "Gateway": "172.17.0.1",
+                    
+		=>	=>	=>	"IPAddress": "172.17.0.2",
+                    
+					"IPPrefixLen": 16,
+                    "IPv6Gateway": "",
+                    "GlobalIPv6Address": "",
+                    "GlobalIPv6PrefixLen": 0,
+                    "MacAddress": "02:42:ac:11:00:02",
+                    "DriverOpts": null
+                }
+            }
+
+
+ #test du port avec l'ip publique: 
+ ---------------------------------
+ [root@786dac9969ee /]# curl http://172.17.0.2:4243/version
+{"Platform":{"Name":"Docker Engine - Community"},"Components":[{"Name":"Engine","Version":"20.10.5","Details":{"ApiVersion":"1.41","Arch":"amd64","BuildTime":"2021-03-02T20:32:17.000000000+00:00","Experimental":"false","GitCommit":"363e9a8","GoVersion":"go1.13.15","KernelVersion":"4.19.128-microsoft-standard","MinAPIVersion":"1.12","Os":"linux"}},{"Name":"containerd","Version":"1.4.3","Details":{"GitCommit":"269548fa27e0089a8b8278fc4fc781d7f65a939b"}},{"Name":"runc","Version":"1.0.0-rc92","Details":{"GitCommit":"ff819c7e9184c13b7c2607fe6c30ae19403a7aff"}},{"Name":"docker-init","Version":"0.19.0","Details":{"GitCommit":"de40ad0"}}],"Version":"20.10.5","ApiVersion":"1.41","MinAPIVersion":"1.12","GitCommit":"363e9a8","GoVersion":"go1.13.15","Os":"linux","Arch":"amd64","KernelVersion":"4.19.128-microsoft-standard","BuildTime":"2021-03-02T20:32:17.000000000+00:00"}
+
+-----------------------------------------------------------------------------------
+- Jenkins install - 
+-----------------------------------------------------------------------------------
+PS D:\challenges\Challenge-07-Jenkins-with-Docker-agent\task2\dockerContainer-as-build-slave> docker build -t jenkins .
+[+] Building 1.7s (12/12) FINISHED
+ => [internal] load build definition from Dockerfile                                                                            0.1s 
+ => => transferring dockerfile: 32B                                                                                             0.0s 
+ => [internal] load .dockerignore                                                                                               0.1s 
+ => => transferring context: 2B                                                                                                 0.0s 
+ => [auth] jenkins/jenkins:pull token for registry-1.docker.io                                                                  0.0s 
+ => [1/7] FROM docker.io/jenkins/jenkins:2.263.4-lts-jdk11@sha256:2c4f7e27a2fb0715c3f45dfbdcfaba57bbeafe50da678cf062e27f790ab3  0.0s 
+ => CACHED [2/7] RUN apt-get update && apt-get install -y apt-transport-https        ca-certificates curl gnupg2        softwa  0.0s 
+ => CACHED [3/7] RUN curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -                                    0.0s 
+ => CACHED [5/7] RUN add-apt-repository        "deb [arch=amd64] https://download.docker.com/linux/debian        $(lsb_release  0.0s 
+ => CACHED [6/7] RUN apt-get update && apt-get install -y docker-ce-cli                                                         0.0s 
+ => CACHED [7/7] RUN jenkins-plugin-cli --plugins blueocean:1.24.4                                                              0.0s 
+ => exporting to image                                                                                                          0.2s 
+ => => exporting layers                                                                                                         0.0s 
+ => => writing image sha256:b90830212801f8453941b53d116aeaff0b07a67437ef511ab0eea033ab679897                                    0.0s 
+
+
+#run image for jenkins: 
+-----------------------
+docker run -d -p 9090:8080 -p 50000:50000 -v jenkinsData:/var/jenkins_home jenkins/master
+a8db292de17bb44b40aa62d75fe7290ddb56cae0cd1df26355c2fb986f800142
+
+#jump to the container: 
+-----------------------
+docker exec -it a8d /bin/bash
+
+# vérification de la connection avec l'hote docker sur le master jenkins:
+-------------------------------------------------------------------------
+jenkins@a8db292de17b:/$ curl http://172.17.0.2:4243/version
+{"Platform":{"Name":"Docker Engine - Community"},"Components":[{"Name":"Engine","Version":"20.10.5","Details":{"ApiVersion":"1.41","Arch":"amd64","BuildTime":"2021-03-02T20:32:17.000000000+00:00","Experimental":"false","GitCommit":"363e9a8","GoVersion":"go1.13.15","KernelVersion":"4.19.128-microsoft-standard","MinAPIVersion":"1.12","Os":"linux"}},{"Name":"containerd","Version":"1.4.3","Details":{"GitCommit":"269548fa27e0089a8b8278fc4fc781d7f65a939b"}},{"Name":"runc","Version":"1.0.0-rc92","Details":{"GitCommit":"ff819c7e9184c13b7c2607fe6c30ae19403a7aff"}},{"Name":"docker-init","Version":"0.19.0","Details":{"GitCommit":"de40ad0"}}],"Version":"20.10.5","ApiVersion":"1.41","MinAPIVersion":"1.12","GitCommit":"363e9a8","GoVersion":"go1.13.15","Os":"linux","Arch":"amd64","KernelVersion":"4.19.128-microsoft-standard","BuildTime":"2021-03-02T20:32:17.000000000+00:00"}
+
+
+-----------------------------------------------------------------------------------
+ Jenkins interface: localhost:9090 	> admin/pswd
+ >> install plugin Docker cloud provider
+-----------------------------------------------------------------------------------
+> install plugin Docker cloud provider
+> add nodes > configure Cloud > add a new cloud: Docker + docker cloud details: 
+
+
+Name: Docker 
+Docker Host IP: tcp://172.17.0.2:4243 + test connection //return Version = 20.10.5, API Version = 1.41
+
+Check Enabled 
+Check Expose DOCKER_HOST
+
+
+Add Docker Template 
+-------------------
+
+Labels: demo-docker-slave 
+check enable
+Name: demo-docker-slave
+
+Docker Image: bibinwilson/jenkins-slave
+
+Remote File System Root: /home/jenkins
+Connect method: Connect with SSH
+		select ssh credentials: 
+				# add credential : id docker-ssh | user: jenkins | mdp: jenkins - and select this:
+				jenkins/****(docker-ssh)
+		Host Key Verification Strategy: Non verification Strategy
+
+	
+	
+Configure a New Job:
+--------------------
+
+new item: docker slave demo
+	
+
+Restreindre où le projet peut être exécuté	
+		
+ 	Expression: demo-docker-slave 
+	/* return 
+	Label demo-docker-slave matches no nodes and 1 cloud. Permissions or other restrictions provided by plugins may further reduce that list.
+	*/
+
+Ajouter une étape au build > Executer un script shell:  echo "this is run on Docker slave"
+
+Apply and Save 
+
+Click on the projet and Built it 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ID: valeriejeanne
+mdp:  obinaval123
+
+Log in to the server 
+---------------------
+
+λ docker login
+Authenticating with existing credentials...
+Login did not succeed, error: Error response from daemon: open \\.\pipe\docker_engine_linux: The system cannot find the file specified.
+Login with your Docker ID to push and pull images from Docker Hub. If you don't have a Docker ID, head over to https://hub.docker.com to create one.
+Username (valeriejeanne):
+Password:
+Login Succeeded
+
+open the docker service file /lib/systemd/system/docker.service. 
+-----------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+Search for ExecStart and replace that line with the following.
